@@ -78,7 +78,7 @@ class OpenTelemetryBase(unittest.TestCase):
 
     def assertNoSpans(self):
         if HAS_OPENTELEMETRY_INSTALLED:
-            span_list = self.ot_exporter.get_finished_spans()
+            span_list = self.get_finished_spans()
             self.assertEqual(len(span_list), 0)
 
     def assertSpanAttributes(
@@ -86,7 +86,7 @@ class OpenTelemetryBase(unittest.TestCase):
     ):
         if HAS_OPENTELEMETRY_INSTALLED:
             if not span:
-                span_list = self.ot_exporter.get_finished_spans()
+                span_list = self.get_finished_spans()
                 self.assertEqual(len(span_list) > 0, True)
                 span = span_list[0]
 
@@ -127,3 +127,15 @@ class OpenTelemetryBase(unittest.TestCase):
             )
         else:
             return []
+
+    def get_finished_spans(self):
+        if not HAS_OPENTELEMETRY_INSTALLED:
+            return []
+
+        spans = self.ot_exporter.get_finished_spans()
+        # A span with name=None is the result from invoking trace_call without
+        # intention to trace, hence these have to be filtered out.
+        return list(filter(lambda span: span.name, spans))
+
+    def reset(self):
+        self.tearDown()
