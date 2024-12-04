@@ -38,7 +38,10 @@ from google.cloud.spanner_v1._helpers import (
     _check_rst_stream_error,
     _SessionWrapper,
 )
-from google.cloud.spanner_v1._opentelemetry_tracing import trace_call
+from google.cloud.spanner_v1._opentelemetry_tracing import (
+    add_span_event,
+    trace_call,
+)
 from google.cloud.spanner_v1.streamed import StreamedResultSet
 from google.cloud.spanner_v1 import RequestOptions
 
@@ -684,7 +687,7 @@ class _SnapshotBase(_SessionWrapper):
             self._session,
             trace_attributes,
             observability_options=getattr(database, "observability_options", None),
-        ):
+        ) as current_span:
             method = functools.partial(
                 api.partition_read,
                 request=request,
@@ -696,8 +699,12 @@ class _SnapshotBase(_SessionWrapper):
                 method,
                 allowed_exceptions={InternalServerError: _check_rst_stream_error},
             )
-
-        return [partition.partition_token for partition in response.partitions]
+            partition_tokens = [partition.partition_token for partition in response.partitions]
+            if len(partition_tokens) == 0:
+                add_span_event(current_span, "Could not create any partition tokens")
+            else:
+                add_span_event(current_span, "Created partition tokens", {"n": len(partition_tokens)})
+            return partition_tokens
 
     def partition_query(
         self,
