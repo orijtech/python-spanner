@@ -262,11 +262,6 @@ class FixedSizePool(AbstractSessionPool):
                     return api.batch_create_sessions(
                         request=request,
                         metadata=all_metadata,
-                        # Manually passing retry=None because otherwise any
-                        # UNAVAILABLE retry will be retried without replenishing
-                        # the metadata, hence this allows us to manually update
-                        # the metadata using retry_on_unavailable.
-                        retry=None,
                     )
 
                 resp = retry_on_unavailable(create_sessions)
@@ -568,6 +563,7 @@ class PingingPool(AbstractSessionPool):
             "CloudSpanner.PingingPool.BatchCreateSessions",
             observability_options=observability_options,
         ) as span:
+            created_session_count = 0
             while created_session_count < self.size:
                 nth_req = database._next_nth_request
 
@@ -578,13 +574,6 @@ class PingingPool(AbstractSessionPool):
                     return api.batch_create_sessions(
                         request=request,
                         metadata=all_metadata,
-                        # Manually passing retry=None because otherwise any
-                        # UNAVAILABLE retry will be retried without replenishing
-                        # the metadata, hence this allows us to manually update
-                        # the metadata using retry_on_unavailable.
-                        # TODO: Figure out how to intercept and monkey patch the internals
-                        # of the gRPC transport.
-                        retry=None,
                     )
 
                 resp = retry_on_unavailable(create_sessions)
