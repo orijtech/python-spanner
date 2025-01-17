@@ -326,9 +326,7 @@ class _SnapshotBase(_SessionWrapper):
         )
 
         nth_request = getattr(database, "_next_nth_request", 0)
-        all_metadata = database.metadata_with_request_id(
-            nth_request, 1, metadata
-        )
+        all_metadata = database.metadata_with_request_id(nth_request, 1, metadata)
 
         restart = functools.partial(
             api.streaming_read,
@@ -551,15 +549,19 @@ class _SnapshotBase(_SessionWrapper):
         if not isinstance(nth_request, int):
             raise Exception(f"failed to get an integer back: {nth_request}")
 
-        restart = functools.partial(
-            api.execute_streaming_sql,
-            request=request,
-            metadata=database.metadata_with_request_id(
-                nth_request, 1, metadata
-            ),
-            retry=retry,
-            timeout=timeout,
-        )
+        attempt = AtomicCounter(0)
+
+        def wrapped_restart(*args, **kwargs):
+            restart = functools.partial(
+                api.execute_streaming_sql,
+                request=request,
+                metadata=database.metadata_with_request_id(
+                    nth_request, attempt.increment(), metadata
+                ),
+                retry=retry,
+                timeout=timeout,
+            )
+            return restart(*args, **kwargs)
 
         trace_attributes = {"db.statement": sql}
         observability_options = getattr(database, "observability_options", None)
@@ -568,7 +570,7 @@ class _SnapshotBase(_SessionWrapper):
             # lock is added to handle the inline begin for first rpc
             with self._lock:
                 return self._get_streamed_result_set(
-                    restart,
+                    wrapped_restart,
                     request,
                     trace_attributes,
                     column_info,
@@ -577,7 +579,7 @@ class _SnapshotBase(_SessionWrapper):
                 )
         else:
             return self._get_streamed_result_set(
-                restart,
+                wrapped_restart,
                 request,
                 trace_attributes,
                 column_info,
@@ -705,9 +707,7 @@ class _SnapshotBase(_SessionWrapper):
             observability_options=getattr(database, "observability_options", None),
         ):
             nth_request = getattr(database, "_next_nth_request", 0)
-            all_metadata = database.metadata_with_request_id(
-                nth_request, 1, metadata
-            )
+            all_metadata = database.metadata_with_request_id(nth_request, 1, metadata)
             method = functools.partial(
                 api.partition_read,
                 request=request,
@@ -813,9 +813,7 @@ class _SnapshotBase(_SessionWrapper):
             observability_options=getattr(database, "observability_options", None),
         ):
             nth_request = getattr(database, "_next_nth_request", 0)
-            all_metadata = database.metadata_with_request_id(
-                nth_request, 1, metadata
-            )
+            all_metadata = database.metadata_with_request_id(nth_request, 1, metadata)
             method = functools.partial(
                 api.partition_query,
                 request=request,
@@ -964,9 +962,7 @@ class Snapshot(_SnapshotBase):
             observability_options=getattr(database, "observability_options", None),
         ):
             nth_request = getattr(database, "_next_nth_request", 0)
-            all_metadata = database.metadata_with_request_id(
-                nth_request, 1, metadata
-            )
+            all_metadata = database.metadata_with_request_id(nth_request, 1, metadata)
             method = functools.partial(
                 api.begin_transaction,
                 session=self._session.name,
