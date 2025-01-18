@@ -205,16 +205,17 @@ class Session(object):
                 )
             )
 
-        all_metadata = database.metadata_with_request_id(
-            database._next_nth_request, 1, metadata
-        )
-
         observability_options = getattr(self._database, "observability_options", None)
         with trace_call(
             "CloudSpanner.GetSession", self, observability_options=observability_options
         ) as span:
             try:
-                api.get_session(name=self.name, metadata=all_metadata)
+                api.get_session(
+                    name=self.name,
+                    metadata=database.metadata_with_request_id(
+                        database._next_nth_request, 1, metadata
+                    ),
+                )
                 if span:
                     span.set_attribute("session_found", True)
             except NotFound:
